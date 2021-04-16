@@ -6,10 +6,13 @@ Promise.all([
   faceapi.nets.ssdMobilenetv1.loadFromUri('/models'),
 ]).then(start)
 
-function start(){
+async function start(){
   const container = document.createElement('div');
   container.style.position = 'relative';
   document.body.append(container);
+
+  const labeledFaceDescriptors = await loadLabeledImages();
+  const faceMatcher = new faceapi.FaceMatcher(labeledFaceDescriptors, 0.6)
 
   document.body.append('Loaded')
 
@@ -26,22 +29,28 @@ function start(){
     const detections = await faceapi.detectAllFaces(image).withFaceLandmarks().withFaceDescriptors();
 
     const resizeDetections = faceapi.resizeResults(detections, displaySize);
+    const results =  resizeDetections.map(res => faceMatcher.findBestMatch(res.descriptor));
 
-    resizeDetections.forEach(detection => {
-      const box =  detection.detection.box;
-      const drawBox = new faceapi.draw.DrawBox(box, {label: 'Face'});
+    results.forEach((result, i) => {
+      const box =  resizeDetections[i].detection.box;
+      const drawBox = new faceapi.draw.DrawBox(box, {label: result.toString()});
       drawBox.draw(canvas)
     })
   })
 }
 
 function loadLabeledImages(){
-  const labels = ['Black Widow', 'Captain America', 'Captain Marvel', 'Hawkeye', 'Jim Rhodes', 'Thor', 'Tony Stark']
+  const labels = ['BlackWidow', 'CaptainAmerica', 'CaptainMarvel', 'Hawkeye', 'JimRhodes', 'Thor', 'TonyStark']
   return Promise.all([
     labels.map(async label => {
+      const descriptions = []
       for(let i = 1; i <= 2; i++){
-        const img = await faceapi.fetchImage(``)
+        const img = await faceapi.fetchImage(`https://raw.githubusercontent.com/Nodarra/JavaScript/master/Face-Recognition/images/${label}/${i}.jpg`)
+        const detections = await faceapi.detectSingleFace(img).withFaceLandmarks().withFaceDescriptor()
+        descriptions.push(detections.descriptor)
       }
+
+      return new faceapi.LabeledFaceDescriptors(label, descriptions);
     })
   ])
 }
